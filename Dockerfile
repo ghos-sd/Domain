@@ -1,26 +1,23 @@
-# خفيف ومستقر
-FROM python:3.11-slim
+# صورة Playwright الرسمية (تجي جاهزة بكل الديبندنسيز والمتصفحات)
+FROM mcr.microsoft.com/playwright/python:v1.45.0-jammy
 
-# إعدادات عامة للبايثون
+# إعدادات بايثون
 ENV PYTHONDONTWRITEBYTECODE=1 \
-    PYTHONUNBUFFERED=1
+    PYTHONUNBUFFERED=1 \
+    PLAYWRIGHT_BROWSERS_PATH=/ms-playwright
 
 # مجلد العمل
 WORKDIR /app
 
-# تنصيب باكدجات البايثون
+# المتطلبات
 COPY requirements.txt .
 RUN pip install --no-cache-dir -r requirements.txt
 
-# تنزيل كروميوم وتبعياته تلقائياً (أسهل وأضمن من apt)
-# --with-deps يثبت كل مكتبات النظام المطلوبة للتشغيل داخل الحاوية
-RUN playwright install --with-deps chromium
-
-# نسخ الكود
+# الكود
 COPY . .
 
-# البورت اللي هيخدم عليه Uvicorn
+# المنفذ
 EXPOSE 8000
 
-# أمر التشغيل
+# تشغيل السيرفر
 CMD ["uvicorn", "main:app", "--host", "0.0.0.0", "--port", "8000"]
