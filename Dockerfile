@@ -1,18 +1,18 @@
-# استخدم صورة جاهزة فيها Chromium و Playwright مثبت مسبقاً
-FROM mcr.microsoft.com/playwright/python:v1.43.1-jammy
+# Use the official Playwright Python image with all dependencies preinstalled
+FROM mcr.microsoft.com/playwright/python:latest
 
-# عيّن مجلد العمل
+# Set the working directory inside the container
 WORKDIR /app
 
-# نسخ المتطلبات وتثبيت المكتبات
+# Copy requirements file and install dependencies
 COPY requirements.txt .
 RUN pip install --no-cache-dir -r requirements.txt
 
-# نسخ الكود إلى الحاوية
+# Copy the rest of the application code
 COPY . .
 
-# فتح البورت للتطبيق
+# Expose the port that FastAPI will run on
 EXPOSE 8000
 
-# تشغيل تطبيق FastAPI
+# Run the FastAPI app using Uvicorn
 CMD ["uvicorn", "main:app", "--host", "0.0.0.0", "--port", "8000"]
