@@ -1,5 +1,5 @@
 fastapi
+python-telegram-bot
 uvicorn[standard]
-httpx
 playwright
-python-dotenv
+beautifulsoup4
