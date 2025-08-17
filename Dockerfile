@@ -1,18 +1,26 @@
-# Use the official Playwright Python image with all dependencies preinstalled
-FROM mcr.microsoft.com/playwright/python:latest
+# صورة بايثون خفيفة
+FROM python:3.11-slim
 
-# Set the working directory inside the container
+ENV PYTHONDONTWRITEBYTECODE=1 \
+    PYTHONUNBUFFERED=1
+
+# تثبيت متطلبات النظام الأساسية
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    ca-certificates curl && \
+    rm -rf /var/lib/apt/lists/*
+
+# مجلد العمل
 WORKDIR /app
 
-# Copy requirements file and install dependencies
+# نسخ واعتماد التبعيات
 COPY requirements.txt .
 RUN pip install --no-cache-dir -r requirements.txt
 
-# Copy the rest of the application code
+# نسخ الكود
 COPY . .
 
-# Expose the port that FastAPI will run on
-EXPOSE 8000
+# Railway يمرر PORT تلقائيًا، نخليه كمتغير بيئي
+ENV PORT=8000
 
-# Run the FastAPI app using Uvicorn
+# أمر التشغيل
 CMD ["uvicorn", "main:app", "--host", "0.0.0.0", "--port", "8000"]
