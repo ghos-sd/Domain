@@ -1,80 +1,64 @@
-import os
-import httpx
 from fastapi import FastAPI, Request
-from pydantic import BaseModel
-from typing import Optional
+import httpx
+import os
 
 app = FastAPI()
 
-BOT_TOKEN = os.getenv("BOT_TOKEN")
-BASE_URL = f"https://api.telegram.org/bot{BOT_TOKEN}"
+BOT_TOKEN = os.getenv("BOT_TOKEN")  # تأكد أنه مضاف في Railway variables
+API_URL = f"https://api.telegram.org/bot{BOT_TOKEN}/sendMessage"
+SPACESHIP_URL = "https://api.spaceship.com/check"
 
-# موديل الرد
-class DomainCheckResult(BaseModel):
-    domain: str
-    status: str
-    tier: Optional[str]
-    price: Optional[str]
-    source: str
+ALLOWED_TLDS = [".com", ".net"]  # فقط المجالات المدعومة
 
-# دالة التحقق من الدومين عبر spaceship
-async def check_domain(domain: str) -> DomainCheckResult:
-    try:
-        async with httpx.AsyncClient() as client:
-            res = await client.get(f"https://api.spaceship.com/check?domain={domain}")
-            data = res.json()
-            return DomainCheckResult(
-                domain=domain,
-                status=data.get("status", "unknown"),
-                tier=data.get("tier", None),
-                price=data.get("price", None),
-                source="spaceship"
-            )
-    except Exception:
-        return DomainCheckResult(
-            domain=domain,
-            status="error",
-            tier=None,
-            price=None,
-            source="spaceship"
-        )
+# الصفحة الرئيسية (اختياري)
+@app.get("/")
+def read_root():
+    return {"status": "Bot is running."}
 
-# استقبال Webhook من Telegram
+# Webhook Endpoint
 @app.post("/telegram-webhook")
 async def telegram_webhook(req: Request):
     data = await req.json()
-    message = data.get("message", {})
-    chat_id = message.get("chat", {}).get("id")
-    text = message.get("text", "")
-
-    if not chat_id or not text:
+    
+    # التأكد من وجود رسالة
+    if "message" not in data or "text" not in data["message"]:
         return {"ok": True}
+    
+    message = data["message"]
+    chat_id = message["chat"]["id"]
+    text = message["text"].strip().lower()
+    
+    # تخطي أي نص بدون .com أو .net
+    if not (text.endswith(".com") or text.endswith(".net")):
+        await send_message(chat_id, "رجاءً أرسل دومين ينتهي بـ .com أو .net فقط.")
+        return {"ok": True}
+    
+    # استعلام Spaceship API
+    try:
+        async with httpx.AsyncClient() as client:
+            response = await client.get(f"{SPACESHIP_URL}?domain={text}")
+            result = response.json()
+        
+        status = result.get("status", "unknown")
+        price = result.get("price", "N/A")
+        source = result.get("source", "N/A")
 
-    if text.startswith("/start"):
-        reply = "أرسل لي أي دومين مثل: `test.com` وسأتحقق من توفره ✅"
-    elif "." in text:
-        result = await check_domain(text)
-        reply = f"""🔎 {result.domain}
-الحالة: {result.status}
-المستوى: {result.tier or '-'}
-السعر: {result.price or '-'}
-المصدر: {result.source}"""
-    else:
-        reply = "من فضلك أرسل اسم دومين صحيح مثل `example.com`"
+        if status == "available":
+            msg = f"✅ الدومين متاح: {text}\n💰 السعر: {price}\n📦 المصدر: {source}"
+        else:
+            msg = f"❌ غير متاح: {text}\n📦 الحالة: {status}"
+        
+        await send_message(chat_id, msg)
 
-    # الرد
-    await send_message(chat_id, reply)
+    except Exception as e:
+        await send_message(chat_id, f"🚫 حصل خطأ أثناء التحقق: {e}")
+    
     return {"ok": True}
 
-# دالة إرسال رسالة
-async def send_message(chat_id: int, text: str):
-    async with httpx.AsyncClient() as client:
-        await client.post(
-            f"{BASE_URL}/sendMessage",
-            json={"chat_id": chat_id, "text": text}
-        )
 
-# فحص جاهزية
-@app.get("/")
-async def root():
-    return {"status": "ok"}
+async def send_message(chat_id, text):
+    async with httpx.AsyncClient() as client:
+        await client.post(API_URL, json={
+            "chat_id": chat_id,
+            "text": text
+        })
